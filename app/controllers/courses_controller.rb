@@ -25,7 +25,7 @@ class CoursesController < ApplicationController
   ################
 
   def create
-    course_creation_manager = CourseCreationManager.new(course_params, wiki_params, current_user)
+    course_creation_manager = CourseCreationManager.new(course_params, wiki_params, initial_campaign_params, current_user)
     unless course_creation_manager.valid?
       render json: { message: course_creation_manager.invalid_reason },
              status: 404
@@ -179,6 +179,11 @@ class CoursesController < ApplicationController
       .require(:course)
       .permit(:language, :project)
   end
+
+  def initial_campaigns_params
+    params
+      .require(:course)
+      .permit(:initial_campaign_id)    
 
   def course_params
     params

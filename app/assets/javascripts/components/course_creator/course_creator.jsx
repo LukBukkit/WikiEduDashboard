@@ -51,6 +51,7 @@ const CourseCreator = React.createClass({
 
   componentWillMount() {
     CourseActions.addCourse();
+    ServerActions.fetchCampaign(1);
     return ServerActions.fetchCoursesForUser(getUserId());
   },
 
