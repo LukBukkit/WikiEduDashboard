@@ -1,25 +1,29 @@
 # frozen_string_literal: true
+
 require 'csv'
 # == Schema Information
 #
 # Table name: campaigns
 #
-#  id          :integer          not null, primary key
-#  title       :string(255)
-#  slug        :string(255)
-#  url         :string(255)
-#  created_at  :datetime
-#  updated_at  :datetime
-#  description :text(65535)
-#  start       :datetime
-#  end         :datetime
+#  id                   :integer          not null, primary key
+#  title                :string(255)
+#  slug                 :string(255)
+#  url                  :string(255)
+#  created_at           :datetime
+#  updated_at           :datetime
+#  description          :text(65535)
+#  start                :datetime
+#  end                  :datetime
+#  template_description :text(65535)
 #
 
 #= Campaign model
 class Campaign < ActiveRecord::Base
-  has_many :campaigns_courses, class_name: CampaignsCourses, dependent: :destroy
-  has_many :campaigns_users, class_name: CampaignsUsers, dependent: :destroy
+  has_many :campaigns_courses, class_name: 'CampaignsCourses', dependent: :destroy
+  has_many :campaigns_users, class_name: 'CampaignsUsers', dependent: :destroy
   has_many :courses, through: :campaigns_courses
+  has_many :articles_courses, through: :courses
+  has_many :articles, -> { distinct }, through: :courses
   has_many :students, -> { distinct }, through: :courses
   has_many :instructors, -> { distinct }, through: :courses
   has_many :nonstudents, -> { distinct }, through: :courses
@@ -42,29 +46,15 @@ class Campaign < ActiveRecord::Base
   # Scopes #
   ##########
 
-  scope :active, -> { where('end > ?', Time.zone.now) }
+  scope :active, -> { where('end > ?', Time.zone.now).or(where(end: nil)) }
 
   ####################
   # Instance methods #
   ####################
 
-  def students_without_nonstudents
-    students.where.not(id: nonstudents.pluck(:id))
-  end
-
-  def trained_count
-    courses.sum(:trained_count)
-  end
-
-  def trained_percent
-    student_count = students_without_nonstudents.count
-    return 100 if student_count.zero?
-    100 * trained_count.to_f / student_count
-  end
-
   def users_to_csv(role, opts = {})
     csv_data = []
-    courses.each do |course|
+    courses.nonprivate.each do |course|
       users = course.send(role)
       users.each do |user|
         line = [user.username]
@@ -100,33 +90,34 @@ class Campaign < ActiveRecord::Base
   private
 
   def validate_dates
-    blank_dates = []
+    # It's fine to have no dates at all.
+    return if start.nil? && self.end.nil?
 
-    [:start, :end].each do |date_type|
-      begin
-        # intercept Rails typecasting and add error if given string cannot be parsed into a date
-        if value = self.send("#{date_type}_before_type_cast").presence
-          self[date_type] = value.is_a?(Date) || value.is_a?(Time) ? value : DateTime.parse(value)
-        else
-          blank_dates << date_type
-        end
-      rescue ArgumentError
-        errors.add(date_type, I18n.t('error.invalid_date', key: date_type.capitalize))
-      end
+    # If any are present, all must be valid and self-consistent.
+    %i[start end].each do |date_type|
+      validate_date_attribute(date_type)
     end
 
-    if blank_dates.length == 1
-      errors.add(blank_dates.first, I18n.t('error.invalid_date', key: blank_dates.first.capitalize))
-    end
+    errors.add(:start, I18n.t('error.start_date_before_end_date')) unless valid_start_and_end_dates?
+  end
 
-    if start && self.end && start > self.end
-      errors.add(:start, I18n.t('error.start_date_before_end_date'))
-    end
+  # Intercept Rails typecasting and add error if given value cannot be parsed into a date.
+  def validate_date_attribute(date_type)
+    value = send("#{date_type}_before_type_cast")
+    self[date_type] = value.is_a?(Date) || value.is_a?(Time) ? value : DateTime.parse(value)
+  rescue ArgumentError, TypeError
+    errors.add(date_type, I18n.t('error.invalid_date', key: date_type.capitalize))
+  end
+
+  # Start must not be after end.
+  def valid_start_and_end_dates?
+    return false unless start && self.end
+    start <= self.end
   end
 
   def set_slug
-    # Strip everything but letters and digits, and convert spaces to underscores
-    self.slug = title.downcase.gsub(/[^\w0-9 ]/, '').tr(' ', '_') unless self.slug.present?
+    # Strip everything but unicode letters and digits, and convert spaces to underscores.
+    self.slug = title.downcase.gsub(/[^\p{L}0-9 ]/, '').tr(' ', '_') unless slug.present?
   end
 
   def set_default_times

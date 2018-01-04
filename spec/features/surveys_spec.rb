@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'rails_helper'
 
 describe 'Surveys', type: :feature, js: true do
@@ -6,7 +7,8 @@ describe 'Surveys', type: :feature, js: true do
   include Rapidfire::AnswerSpecHelper
 
   before do
-    include Devise::TestHelpers, type: :feature
+    include type: :feature
+    include Devise::TestHelpers
     page.current_window.resize_to(1920, 1080)
   end
 
@@ -39,7 +41,7 @@ describe 'Surveys', type: :feature, js: true do
   # end
 
   describe 'Editing a Survey' do
-    # let!(:question_group)  { FactoryGirl.create(:question_group, name: "Survey Section 1") }
+    # let!(:question_group)  { FactoryBot.create(:question_group, name: "Survey Section 1") }
     # let!(:survey)  { create(:survey, name: "Dumb Survey", :rapidfire_question_groups => [question_group]) }
 
     # before :each do
@@ -194,24 +196,34 @@ describe 'Surveys', type: :feature, js: true do
 
       click_button('Start')
 
+      sleep 1
+
       within('div[data-progress-index="2"]') do
         click_button('Next', visible: true) # Q1
       end
+
+      sleep 1
 
       find('.label', text: 'hindi').click
       within('div[data-progress-index="3"]') do
         click_button('Next', visible: true) # Q2
       end
 
+      sleep 1
+
       find('.label', text: 'female').click
       within('div[data-progress-index="4"]') do
         click_button('Next', visible: true) # Q3
       end
 
+      sleep 1
+
       fill_in('answer_group_6_answer_text', with: 'testing')
       within('div[data-progress-index="5"]') do
         click_button('Next', visible: true) # Q4
       end
+
+      sleep 1
 
       select('mac', from: 'answer_group_7_answer_text')
       within('div[data-progress-index="6"]') do
@@ -219,24 +231,33 @@ describe 'Surveys', type: :feature, js: true do
       end
 
       sleep 1
+
       within('div[data-progress-index="7"]') do
         click_button('Next', visible: true) # Q6
       end
+
+      sleep 1
 
       fill_in('answer_group_9_answer_text', with: 'testing')
       within('div[data-progress-index="8"]') do
         click_button('Next', visible: true) # Q7
       end
 
+      sleep 1
+
       fill_in('answer_group_10_answer_text', with: '50')
       within('div[data-progress-index="9"]') do
         click_button('Next', visible: true) # Q8
       end
 
+      sleep 1
+
       within('div[data-progress-index="10"]') do
         find('.label', text: 'None of the above').click
         click_button('Next', visible: true) # Q9
       end
+
+      sleep 1
 
       within('div[data-progress-index="11"]') do
         click_button('Next', visible: true) # Q10
@@ -244,9 +265,13 @@ describe 'Surveys', type: :feature, js: true do
 
       # Q11 not rendered
 
+      sleep 1
+
       within('div[data-progress-index="12"]') do
         click_button('Next', visible: true) # Q12
       end
+
+      sleep 1
 
       # expect(page).not_to have_content 'You made it!'
       click_button('Submit Survey', visible: true) # Q13
@@ -256,6 +281,8 @@ describe 'Surveys', type: :feature, js: true do
       expect(Rapidfire::AnswerGroup.last.course_id).to eq(@course.id)
       expect(SurveyNotification.last.completed).to eq(true)
 
+      expect(Survey.last.to_csv).to match('username,') # beginning of header
+      expect(Survey.last.to_csv).to match(@instructor.username + ',') # beginning of response row
       puts 'PASSED'
       raise 'this test passed — this time'
     end

@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'rails_helper'
 
 describe AlertsController do
@@ -59,6 +60,30 @@ describe AlertsController do
         post :create, params: alert_params, format: :json
         expect(response.status).to eq(400)
       end
+    end
+  end
+
+  describe '#resolve' do
+    let(:alert) { create(:alert) }
+    let(:admin) { create(:admin) }
+
+    before do
+      allow(controller).to receive(:current_user).and_return(admin)
+    end
+
+    it 'should update Alert resolved column to true' do
+      put :resolve, params: { id: alert.id }, format: :json
+
+      expect(response.status).to eq(200)
+      expect(alert.reload.resolved).to be(true)
+    end
+
+    it 'should not update Alert unless its resolvable' do
+      alert.update resolved: true
+
+      put :resolve, params: { id: alert.id }, format: :json
+
+      expect(response.status).to eq(422)
     end
   end
 end

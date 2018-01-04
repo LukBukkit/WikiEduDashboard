@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'rails_helper'
 
 def create_course
@@ -37,7 +38,8 @@ describe 'timeline editing', type: :feature, js: true do
   let(:unassigned_module_name) { 'Editing Basics' }
 
   before do
-    include Devise::TestHelpers, type: :feature
+    include type: :feature
+    include Devise::TestHelpers
     page.current_window.resize_to(1920, 1080)
 
     create_course
@@ -71,7 +73,7 @@ describe 'timeline editing', type: :feature, js: true do
     visit "/courses/#{Course.first.slug}/timeline"
     expect(page).not_to have_content 'Add Assignment'
     accept_confirm do
-      find('span.week__delete-week').click
+      find('button.week__delete-week').click
     end
     expect(page).to have_content 'Add Assignment'
     sleep 1
@@ -140,7 +142,7 @@ describe 'timeline editing', type: :feature, js: true do
   it 'lets users add a block' do
     visit "/courses/#{Course.first.slug}/timeline"
     expect(Block.count).to eq(2)
-    find('span.week__add-block').click
+    find('button.week__add-block').click
     click_button 'Save'
     sleep 1
     expect(Block.count).to eq(3)

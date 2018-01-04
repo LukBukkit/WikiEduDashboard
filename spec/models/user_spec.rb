@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 # == Schema Information
 #
 # Table name: users
@@ -20,6 +21,9 @@
 #  greeted             :boolean          default(FALSE)
 #  greeter             :boolean          default(FALSE)
 #  locale              :string(255)
+#  chat_password       :string(255)
+#  chat_id             :string(255)
+#  registered_at       :datetime
 #
 
 require 'rails_helper'
@@ -37,8 +41,9 @@ describe User do
   describe 'user deletion' do
     it 'destroys the User and associated CampaignsUsers and CoursesUsers' do
       user = create(:user)
-      courses_user = create(:courses_user, user_id: user.id)
-      campaigns_users = create(:campaigns_user, user_id: user.id)
+      course = create(:course)
+      create(:courses_user, user_id: user.id, course_id: course.id)
+      create(:campaigns_user, user_id: user.id)
       expect(CoursesUsers.count).to eq(1)
       expect(CampaignsUsers.count).to eq(1)
       user.destroy
@@ -74,6 +79,7 @@ describe User do
       role = user.role(course)
       expect(role).to eq(0)
       expect(user.student?(course)).to eq(true)
+      expect(user.course_student?).to eq(true)
       expect(user.instructor?(course)).to eq(false)
 
       # Now let's make this user also an instructor.
@@ -82,6 +88,7 @@ describe User do
              user_id: 1,
              role: 1) # instructor
       expect(user.instructor?(course)).to eq(true)
+      expect(user.course_instructor?).to eq(true)
 
       # User is only an instructor, not an admin.
       adminship = user.roles(course)[:admin]
@@ -201,6 +208,29 @@ describe User do
       it 'returns true' do
         expect(subject).to eq(true)
       end
+    end
+  end
+
+  describe '#search' do
+    let(:search_user) { create(:user, email: 'findme@example.com', real_name: 'Find Me') }
+    let(:similar_search_user) { create(:user, username: 'similar', email: 'find@example.com') }
+
+    it 'returns user(s) with given email address' do
+      result = User.search_by_email(search_user.email)
+
+      expect(result).to eq([search_user])
+    end
+
+    it 'returns user(s) with given full name' do
+      result = User.search_by_real_name(search_user.real_name)
+      expect(result).to eq([search_user])
+    end
+
+    it 'returns user(s) without full email' do
+      # The word 'find' is present in both emails.
+      result = User.search_by_email('find')
+
+      expect(result).to eq([search_user, similar_search_user])
     end
   end
 end

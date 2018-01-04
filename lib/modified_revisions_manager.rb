@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "#{Rails.root}/lib/importers/article_importer"
 require "#{Rails.root}/lib/replica"
 require "#{Rails.root}/lib/utils"
@@ -58,14 +59,15 @@ class ModifiedRevisionsManager
       ArticleImporter.new(@wiki).import_articles([mw_page_id])
     end
 
-    article = Article.find_by(wiki_id: @wiki.id, mw_page_id: mw_page_id)
+    article = Article.find_by(wiki_id: @wiki.id, mw_page_id: mw_page_id, deleted: false)
 
     # Don't update the revision to point to a new article if there isn't one.
     # This may happen if the article gets moved and then deleted, and there's
     # some inconsistency or timing delay in the update process.
     return unless article
 
-    Revision.find_by(wiki_id: @wiki.id, mw_rev_id: moved['rev_id'])
-            .update(article_id: article.id, mw_page_id: mw_page_id)
+    revision = Revision.find_by(wiki_id: @wiki.id, mw_rev_id: moved['rev_id'])
+    return unless revision
+    revision.update(article_id: article.id, mw_page_id: mw_page_id)
   end
 end

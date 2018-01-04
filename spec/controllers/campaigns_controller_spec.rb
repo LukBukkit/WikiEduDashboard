@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'rails_helper'
 
 describe CampaignsController do
@@ -137,7 +138,7 @@ describe CampaignsController do
 
   describe '#remove_organizer' do
     let(:user) { create(:user) }
-    let(:user2) { create(:user) }
+    let(:user2) { create(:user, username: 'user2') }
     let(:campaign) { create(:campaign) }
     let(:organizer) do
       create(:campaigns_user, id: 5, user_id: user2.id, campaign_id: campaign.id,
@@ -158,6 +159,32 @@ describe CampaignsController do
       put :remove_organizer, params: { slug: campaign.slug, id: organizer.user_id }
       expect(response.status).to eq(302) # redirect to /overview
       expect(CampaignsUsers.find_by_id(organizer.id)).to be_nil
+    end
+  end
+
+  describe '#remove_course' do
+    let(:user) { create(:user) }
+    let(:campaign) { create(:campaign) }
+    let(:course) { create(:course) }
+    let!(:campaigns_course) do
+      create(:campaigns_course, campaign_id: campaign.id,
+                                course_id: course.id)
+    end
+
+    it 'returns a 401 if the user is not an admin and not an organizer of the campaign' do
+      allow(controller).to receive(:current_user).and_return(user)
+      put :remove_course, params: { slug: campaign.slug, course_id: course.id }
+      expect(response.status).to eq(401)
+      expect(CampaignsCourses.find_by_id(campaigns_course.id)).not_to be_nil
+    end
+
+    it 'removes the course from the campaign if the current user is a campaign organizer' do
+      create(:campaigns_user, id: 5, user_id: user.id, campaign_id: campaign.id,
+                              role: CampaignsUsers::Roles::ORGANIZER_ROLE)
+      allow(controller).to receive(:current_user).and_return(user)
+      put :remove_course, params: { slug: campaign.slug, course_id: course.id }
+      expect(response.status).to eq(302) # redirect to /overview
+      expect(CampaignsCourses.find_by_id(campaigns_course.id)).to be_nil
     end
   end
 
@@ -237,6 +264,25 @@ describe CampaignsController do
     it 'returns a csv of course data' do
       get :courses, params: request_params
       expect(response.body).to have_content(course.slug)
+      expect(response.body).to have_content(course.title)
+      expect(response.body).to have_content(course.school)
+    end
+  end
+
+  describe '#articles_csv' do
+    let(:course) { create(:course) }
+    let(:campaign) { create(:campaign) }
+    let(:article) { create(:article) }
+    let(:request_params) { { slug: campaign.slug, format: :csv } }
+
+    before do
+      campaign.courses << course
+      create(:articles_course, article: article, course: course)
+    end
+    it 'returns a csv of course data' do
+      get :articles_csv, params: request_params
+      expect(response.body).to have_content(course.slug)
+      expect(response.body).to have_content(article.title)
     end
   end
 
@@ -267,7 +313,7 @@ describe CampaignsController do
   describe '#programs' do
     render_views
     let(:course) { create(:course) }
-    let(:course2) { create(:course, title: 'Skydiving basket-weaving') }
+    let(:course2) { create(:course, title: 'course2', slug: 'foo/course2') }
     let(:campaign) { create(:campaign) }
 
     before do
@@ -286,6 +332,32 @@ describe CampaignsController do
     it 'lists the programs for the given campaign' do
       expect(response.body).to have_content(course.title)
       expect(response.body).to have_content(course2.title)
+      expect(response.body).to have_content(course.school)
+      expect(response.body).to have_content(course.term)
+    end
+
+    it 'shows a remove button for the programs if the user is an organizer or admin' do
+      # don't show it if they are not an organizer or admin
+      expect(response.body).to_not have_content(I18n.t('assignments.remove'))
+
+      # when they are an organizer...
+      user = create(:user)
+      create(:campaigns_user, user_id: user.id, campaign_id: campaign.id,
+                              role: CampaignsUsers::Roles::ORGANIZER_ROLE)
+      allow(controller).to receive(:current_user).and_return(user)
+      get :programs, params: { slug: campaign.slug }
+      expect(response.body).to have_content(I18n.t('assignments.remove'))
+
+      # when they are an admin...
+      admin = create(:admin)
+      allow(controller).to receive(:current_user).and_return(admin)
+      get :programs, params: { slug: campaign.slug }
+      expect(response.body).to have_content(I18n.t('assignments.remove'))
+    end
+
+    it 'searches title, school, and term of campaign courses' do
+      get :programs, params: { slug: campaign.slug, courses_query: course.title }
+      expect(response.body).to have_content(course.title)
     end
   end
 end
